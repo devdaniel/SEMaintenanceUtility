@@ -21,42 +21,38 @@ import datetime #For backup naming
 
 #Function to check if the object should be removed
 def DoIRemoveThisGrid(objnode, mode):
-	hasreactor = True
-	hasbeacon = False
-	poweredon = False
-	hasfuel = False
+	return False
 
+#Function to check if grid should be powered down
+def DoIPowerDownThisGrid(objnode):
+	speed = 0
+	hasturrets = False
+	emptyqueue = True
+	beaconname = "" #for logging
+
+	#TODO Calculate speed, for now assume everything is standing still
+
+	#Look for blocks
 	for block in objnode.find('CubeBlocks'):
-		if len(block.attrib.values()) > 0: #If it has an attribute
-			if block.attrib.values()[0] == "MyObjectBuilder_Reactor":
-				#Ok, it's a reactor.
-				hasreactor = True
-
-				#Loop through Inventory
-				inventory = block.find('Inventory').find('Items')
-
-				#Reactor is online
-				if block.find('Enabled').text == "true":
-					poweredon = True
-
-				#As long as there's something in the inventory, you can only put fuel in a reactor, so it has fuel
-				if len(inventory) > 0:
-					hasfuel = True
-
+		if len(block.attrib.values()) > 0: #has attribute (not armor)
+			#Record beacon name for logs
 			if block.attrib.values()[0] == "MyObjectBuilder_Beacon":
-				hasbeacon = True
+				beaconname = block.get('CustomName')
+				print "Gridname=%s"%beaconname
 
-	#End of block loop
-	if mode == "junk" and hasreactor == False:
-		return True #No reactor on here, kill it
+			#Check for turrets (we don't want to power down any defense grids)
+			if (	block.attrib.values()[0] == "MyObjectBuilder_InteriorTurret" or
+					block.attrib.values()[0] == "MyObjectBuilder_LargeGatlingTurret" or
+					block.attrib.values()[0] == "MyObjectBuilder_LargeMissileTurret"):
+				hasturrets = True
 
-	if mode == "dead" and poweredon == False and hasfuel == False:
-		return True #KILL IT
+			#TODO Check for non-empty assembler & refinery queues and set emptyqueue = False
+	# end of block loop
 
-	if mode == "beacon" and poweredon == False and hasfuel == False and hasbeacon != True:
-		return True #No power, no beacon, kill it
+	if speed == 0 and hasturrets == False and emptyqueue == True:
+		return True #Inactive, OK to kill power
 
-	#Made it here, musn't be kill worthy
+	#Does not meet power-down criteria, leave alone
 	return False
 
 #Function to get a list of players that own at least a part of this ship
@@ -79,13 +75,16 @@ def GetFactionMembers(factionNode):
 
 	return members
 
+#Function to power down all reactors for a grid
+def PowerDownGrid(objnode):
+	return
+
 #Function to clean up factions
 #Empty factions are easy. Look through the xml, if the faction has no players, nuke it
 #Bum factions are trickier. Look through all of the can-own objects in the world
 #Take a list of what playerID owns which blocks
 #If none of the members of a faction have ownership of any blocks, disband it
 #You'll also need to compensate for objects removed during cleanup
-
 
 #########################################
 ### Main ################################
@@ -101,6 +100,7 @@ argparser.add_argument('--cleanup-objects', '-c',
 	choices=['junk', 'dead', 'beacon'], metavar="MODE", default="")
 argparser.add_argument('--cleanup-items', '-C', help="clean up free floating objects like ores and components. Doesn't do corpses, they are more complicated", default=False, action='store_true')
 #Researching a way to remove inactive factions
+argparser.add_argument('--powerdown-inactive', '-P', help="powers down inactive non-defensive grids.", default=False, action='store_true')
 argparser.add_argument('--prune-players', '-p', help="removes old entries in the player list. Considered old if they don't own any blocks.", default=False, action='store_true')
 argparser.add_argument('--prune-factions', '-f', help="remove empty factions and factions that don't own anything", default=False, action='store_true')
 argparser.add_argument('--whatif', '-w', help="for debugging, won't do any backups and won't save changes", default=False, action='store_true')
@@ -110,7 +110,7 @@ args = argparser.parse_args()
 print ""
 
 #Check to see if an action has been specified
-if args.cleanup_objects == "" and args.prune_factions == False and args.cleanup_items == False and args.prune_players == False:
+if args.cleanup_objects == "" and args.prune_factions == False and args.cleanup_items == False and args.prune_players == False and args.powerdown_inactive == False:
 	print "Error: No action specified"
 	argparser.print_help()
 	exit()
@@ -175,10 +175,15 @@ for i in range(0, len(sectorobjects)):
 		objectstoremove.append(i)
 		continue #Next object
 
-	#Only do stuff to CubeGrids, otherwise, its an asteroid or an item or a player. 
+	#Only do stuff to CubeGrids, otherwise, its an asteroid or an item or a player.
 	#Either way, something that you shouldn't be removing
 	if object.attrib.values()[0] != "MyObjectBuilder_CubeGrid":
 		continue #Skip, onto the next
+
+	#Power down inactive objects
+	if args.powerdown_inactive == True and objectclass == "MyObjectBuilder_CubeGrid":
+		if DoIPowerDownThisGrid(object) == True:
+			PowerDownGrid(object)
 
 	if args.cleanup_objects != "" and objectclass == "MyObjectBuilder_CubeGrid" : #If its cleanup o'clock and it's a CubeGrid like a station or ship
 		if DoIRemoveThisGrid(object, args.cleanup_objects) == True:
