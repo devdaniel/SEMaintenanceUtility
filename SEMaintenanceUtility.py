@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET #Used to read the SE save files
 import argparse #Used for CLI arguments
 import shutil #For copying files to backups
 import datetime #For backup naming
+import numpy #for 3d calculations
 
 #########################################
 ### Functions ###########################
@@ -21,6 +22,46 @@ import datetime #For backup naming
 
 #Function to check if the object should be removed
 def DoIRemoveThisGrid(objnode, mode):
+	hasreactor = True
+	hasbeacon = False
+	poweredon = False
+	hasfuel = False
+	hassolar = False
+
+	for block in objnode.find('CubeBlocks'):
+		if len(block.attrib.values()) > 0: #If it has an attribute
+			if block.attrib.values()[0] == "MyObjectBuilder_Reactor":
+				#Ok, it's a reactor.
+				hasreactor = True
+
+				#Loop through Inventory
+				inventory = block.find('Inventory').find('Items')
+
+				#Reactor is online
+				if block.find('Enabled').text == "true":
+					poweredon = True
+
+				#As long as there's something in the inventory, you can only put fuel in a reactor, so it has fuel
+				if len(inventory) > 0:
+					hasfuel = True
+
+			if block.attrib.values()[0] == "MyObjectBuilder_Beacon":
+				hasbeacon = True
+
+			if block.attrib.values()[0] == "MyObjectBuilder_SolarPanel":
+				hassolar = True
+
+	#End of block loop
+	if mode == "junk" and hasreactor == False:
+		return True #No reactor on here, kill it
+
+	if mode == "dead" and poweredon == False and hasfuel == False and hassolar == False:
+		return True #KILL IT
+
+	if mode == "beacon" and poweredon == False and hasfuel == False and hasbeacon == False and hassolar == False:
+		return True #No power, no beacon, kill it
+
+	#Made it here, musn't be kill worthy
 	return False
 
 #Function to check if grid should be powered down
@@ -30,15 +71,33 @@ def DoIPowerDownThisGrid(objnode):
 	emptyqueue = True
 	beaconname = "" #for logging
 
-	#TODO Calculate speed, for now assume everything is standing still
+	#TODO Calculate speed, set to 0 if under 3m/s
+	velocity = objnode.find('LinearVelocity')
+	velocity_x = float(velocity.attrib.values()[0])
+	velocity_y = float(velocity.attrib.values()[1])
+	velocity_z = float(velocity.attrib.values()[2])
+	p1 = numpy.array([0,0,0])
+	p2 = numpy.array([velocity_x, velocity_y, velocity_z])
+	squared_dist = numpy.sum(p1**2 + p2**2, axis=0)
+	dist = numpy.sqrt(squared_dist)
+	print "Velocity=%f m/s"%dist
+	if dist < 3 and dist > 0:
+		print "Ship is too slow, STOPPING SHIP!"
+		velocity.set('x', "0.0")
+		velocity.set('y', "0.0")
+		velocity.set('z', "0.0")
 
 	#Look for blocks
 	for block in objnode.find('CubeBlocks'):
 		if len(block.attrib.values()) > 0: #has attribute (not armor)
-			#Record beacon name for logs
+			##TODO Check for beacon built to 100% and active, record beacon name for logs
 			if block.attrib.values()[0] == "MyObjectBuilder_Beacon":
-				beaconname = block.get('CustomName')
-				print "Gridname=%s"%beaconname
+				beacon = block.find('CustomName')
+				if beacon is None:
+					print "====UNNAMED_SHIP!"
+				else:
+					beaconname = beacon.text
+					print "====Gridname=%s"%beaconname
 
 			#Check for turrets (we don't want to power down any defense grids)
 			if (	block.attrib.values()[0] == "MyObjectBuilder_InteriorTurret" or
@@ -47,6 +106,8 @@ def DoIPowerDownThisGrid(objnode):
 				hasturrets = True
 
 			#TODO Check for non-empty assembler & refinery queues and set emptyqueue = False
+
+			#TODO Check for medbays, we wanna keep those, lol
 	# end of block loop
 
 	if speed == 0 and hasturrets == False and emptyqueue == True:
@@ -77,7 +138,14 @@ def GetFactionMembers(factionNode):
 
 #Function to power down all reactors for a grid
 def PowerDownGrid(objnode):
-	return
+	for block in objnode.find('CubeBlocks'):
+		if len(block.attrib.values()) > 0: #has attribute (not armor)
+			if block.attrib.values()[0] == "MyObjectBuilder_Reactor":
+				enabled = block.find('Enabled')
+				print "Reactor found, status: %s,disabling..."%enabled.text
+				enabled.text = "false"
+	# end of block loop
+	return False
 
 #Function to clean up factions
 #Empty factions are easy. Look through the xml, if the faction has no players, nuke it
@@ -180,11 +248,6 @@ for i in range(0, len(sectorobjects)):
 	if object.attrib.values()[0] != "MyObjectBuilder_CubeGrid":
 		continue #Skip, onto the next
 
-	#Power down inactive objects
-	if args.powerdown_inactive == True and objectclass == "MyObjectBuilder_CubeGrid":
-		if DoIPowerDownThisGrid(object) == True:
-			PowerDownGrid(object)
-
 	if args.cleanup_objects != "" and objectclass == "MyObjectBuilder_CubeGrid" : #If its cleanup o'clock and it's a CubeGrid like a station or ship
 		if DoIRemoveThisGrid(object, args.cleanup_objects) == True:
 			#objectstoremove.append(i)
@@ -193,12 +256,22 @@ for i in range(0, len(sectorobjects)):
 			objectstoremove.append(i)
 			continue #Don't do any more checks. This entity is being destroyed and won't have any further baring on calculations
 
+	#Power down inactive objects
+	if args.powerdown_inactive == True and objectclass == "MyObjectBuilder_CubeGrid":
+		print "Checking powerdown..."
+		if DoIPowerDownThisGrid(object) == True:
+			print "POWERDOWN!"
+			PowerDownGrid(object)
+			continue
+
 	#Changed it, make the list anyway. If an exception occurs, chances are that its an unownable block
+	"""
 	try:
 		owningplayers.extend(GetOwners(object))
 		break
 	except:
 		pass #Do nothing if it shits the bed
+	"""
 
 #End object loop
 
