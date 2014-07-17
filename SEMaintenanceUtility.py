@@ -12,7 +12,6 @@ It requires a fair chunk of RAM at times because it has to load & parse the larg
 
 import xml.etree.ElementTree as ET #Used to read the SE save files
 import argparse #Used for CLI arguments
-#import os #For file system checks
 import shutil #For copying files to backups
 import datetime #For backup naming
 
@@ -95,7 +94,6 @@ def GetFactionMembers(factionNode):
 #Load up argparse
 argparser = argparse.ArgumentParser(description="Utility for performing maintenance & cleanup on SE save files")
 argparser.add_argument('save_path', nargs=1, help='path to the share folder')
-#argparser.add_argument('--skip-backup', '-B', help='skip backup up the sbs file', dest='skip_backup', action='store_true')
 argparser.add_argument('--skip-backup', '-B', help='skip backup up the save files', default=False, action='store_true')
 argparser.add_argument('--big-backup', '-b', help='save the backups as their own files with timestamps. Can make save folder huge after a few backups', default=False, action='store_true')
 argparser.add_argument('--cleanup-objects', '-c',
@@ -171,16 +169,6 @@ for i in range(0, len(sectorobjects)):
 	object = sectorobjects[i]
 	objectclass = object.attrib.values()[0]
 
-	#Removing corpses
-	#Corpses are more complicated, it looks like they're closely tied into other things. More research needed
-	#if objectclass == "MyObjectBuilder_Character" and args.cleanup_items == True:
-	#	if object.find('Health').text == None:
-	#		continue #Character is at full health, do nothing
-	#	if float(object.find('Health').text) <= 0: #If his health is either 0 or below
-	#		print "Marking corpse for removal: ", object.find('EntityId').text
-	#		objectstoremove.append(i)
-	#		continue #Next object
-
 	#Removing free floating items
 	if objectclass == "MyObjectBuilder_FloatingObject" and args.cleanup_items == True:
 		print "Marking free-floating object for removal: ",  object.find('EntityId').text
@@ -189,7 +177,6 @@ for i in range(0, len(sectorobjects)):
 
 	#Only do stuff to CubeGrids, otherwise, its an asteroid or an item or a player. 
 	#Either way, something that you shouldn't be removing
-	#print object.attrib.values()[0]
 	if object.attrib.values()[0] != "MyObjectBuilder_CubeGrid":
 		continue #Skip, onto the next
 
@@ -201,7 +188,6 @@ for i in range(0, len(sectorobjects)):
 			objectstoremove.append(i)
 			continue #Don't do any more checks. This entity is being destroyed and won't have any further baring on calculations
 
-	#if args.prune_factions == True: #If a cleanup of factions will be performed
 	#Changed it, make the list anyway. If an exception occurs, chances are that its an unownable block
 	try:
 		owningplayers.extend(GetOwners(object))
@@ -299,48 +285,6 @@ if args.prune_players == True:
 #Begin checking factions. Must be after object check and player check
 if args.prune_factions == True:
 	print "Beginning faction check..."
-	#print "Owning Players:"
-	#print owningplayers
-
-	"""
-	factionstoremove = []
-
-	if xmlsmallsave.find('Factions') == None:
-		print "Error: Unable to location the Factions node in save!"
-		exit()
-
-	factionlist = xmlsmallsave.find('Factions').find('Factions')
-	for i in range(0,len(factionlist)):
-		faction = factionlist[i]
-		if len(faction.find('Members')) == 0:
-			#print "Removing faction, no members: " + faction.find('Name').text
-			print "Marking faction for removal, no members: " + faction.find('Name').text
-			#factionlist.remove(faction) #Remove the faction
-			factionstoremove.append(i)
-			continue #Move onto next faction
-
-		hasshareholder = False
-		members = GetFactionMembers(faction)
-		for member in members:
-			#print (member in owningplayers)
-			if member in owningplayers: #If this member is in the list of players that own something
-				hasshareholder = True
-
-		if hasshareholder == False: #Too bad son, you're a broke-ass faction and I'mma delete you
-			#print "Removing faction, owns nothing: " + faction.find('Name').text
-			print "Marking faction for removal, owns nothing: " + faction.find('Name').text
-			factionstoremove.append(i)
-			#factionlist.remove(faction)
-			continue #Check the next faction
-
-	#End faction loop
-
-	#Remove factions on list
-	print "Removing marked factions..."
-	factionstoremove.reverse()
-	for i in factionstoremove:
-		factionlist.remove(factionlist[i])
-	"""
 
 	factionIDtoremove = []
 
@@ -407,7 +351,6 @@ if args.whatif == False:
 	smallsavetowrite = ET.tostring(xmlsmallsave, method="xml")
 	#Replace the first line with that special tag. Couldn't figure out how to get elementtree to do it for me
 	smallsavetowrite = """<?xml version="1.0"?>\n<MyObjectBuilder_Checkpoint xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">""" + smallsavetowrite[smallsavetowrite.find("\n"):]
-	#print smallsavetowrite[:100]
 	f = open(smallsavefilepath, 'w')
 	f.write(smallsavetowrite)
 	f.close()
