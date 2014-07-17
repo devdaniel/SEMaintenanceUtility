@@ -40,7 +40,8 @@ import datetime #For backup naming
 def DoIRemoveThisGrid(objnode, mode):
 	hasreactor = True
 	hasbeacon = False
-	haspower = False
+	poweredon = False
+	hasfuel = False
 
 	for block in objnode.find('CubeBlocks'):
 		if len(block.attrib.values()) > 0: #If it has an attribute
@@ -54,9 +55,13 @@ def DoIRemoveThisGrid(objnode, mode):
 				#Loop through Inventory
 				inventory = block.find('Inventory').find('Items')
 
+				#Reactor is online
+				if block.find('Enabled').text == "true":
+					poweredon = True
+
 				#As long as there's something in the inventory, you can only put fuel in a reactor, so it has fuel
-				if block.find('Enabled').text == "true" and len(inventory) > 0:
-					haspower = True
+				if len(inventory) > 0:
+					hasfuel = True
 
 			if block.attrib.values()[0] == "MyObjectBuilder_Beacon":
 				hasbeacon = True
@@ -65,10 +70,10 @@ def DoIRemoveThisGrid(objnode, mode):
 	if mode == "junk" and hasreactor == False:
 		return True #No reactor on here, kill it
 
-	if mode == "dead" and haspower == False:
+	if mode == "dead" and poweredon == False and hasfuel == False:
 		return True #KILL IT
 
-	if mode == "beacon" and haspower != True and hasbeacon != True:
+	if mode == "beacon" and poweredon == False and hasfuel == False and hasbeacon != True:
 		return True #No power, no beacon, kill it
 
 	#Made it here, musn't be kill worthy
