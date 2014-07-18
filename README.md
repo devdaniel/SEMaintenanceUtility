@@ -64,6 +64,29 @@ The ultimate goal of this utility is to become obsolete with its functions being
 
 ## Version History
 
+**V 1.3.1**
+
+- Unicode faction & player names no longer cause exceptions
+- Added --full-clean option to do --cleanup-objects dead --cleanup-items --prune-players --prune-factions --disable-factories soft
+
+**V 1.3**
+
+- Added support for batteries
+- Refined NPC detection, now looks for DampenersEnabled == 'true'
+
+**V 1.2.1**
+
+- Added in "barebeacon" cleanup function for when you want to keep things with a beacon on it, regardless of power or anything else
+- Added in --ignore-joint function to ignore the restriction on removing things with joints. USE WITH CAUTION.
+
+**X 1.2**
+
+- Added function to kill movement and inertia
+- Added function to soft and hard turn off assemblers and refineries
+- Discovered that Rotors are joined based on proximity, no by an ID. To avoid damage until a solution is found, no object with a stator or a rotor will be removed.
+- Modified PlayerPrune to: Owns Nothing & (Not in a faction OR IsDead). This will remove all junk dead player entries as well as player entries for those that join the server, play for 20secs then leave
+- Added function to remove NPC ships
+
 **V 1.1.1**
 
 - Fixed up Player pruning. Removes player from the FactionPlayer and FactionRequests tables
